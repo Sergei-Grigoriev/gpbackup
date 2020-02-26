@@ -107,10 +107,12 @@ func InitializeMetadataParams(connectionPool *dbconn.DBConn) {
 
 type MetadataQueryStruct struct {
 	UniqueID
-	Privileges            sql.NullString
+	Name                  string
 	Kind                  string
+	Schema                string
 	Owner                 string
 	Comment               string
+	Privileges            sql.NullString
 	SecurityLabel         string
 	SecurityLabelProvider string
 }
@@ -118,61 +120,67 @@ type MetadataQueryStruct struct {
 func GetMetadataForObjectType(connectionPool *dbconn.DBConn, params MetadataQueryParams) MetadataMap {
 	gplog.Verbose("Getting object type metadata from " + params.CatalogTable)
 
-	aclStr := "''"
-	kindStr := "''"
+	nameCol := params.NameField
+	aclCols := "''"
+	kindCol := "''"
 	if params.ACLField != "" {
-		aclStr = fmt.Sprintf(`CASE
+		aclCols = fmt.Sprintf(`CASE
 		WHEN %[1]s IS NULL THEN NULL
 		WHEN array_upper(%[1]s, 1) = 0 THEN %[1]s[0]
 		ELSE unnest(%[1]s) END`, params.ACLField)
-		kindStr = fmt.Sprintf(`CASE
+		kindCol = fmt.Sprintf(`CASE
 		WHEN %[1]s IS NULL THEN ''
 		WHEN array_upper(%[1]s, 1) = 0 THEN 'Empty'
 		ELSE '' END`, params.ACLField)
 	}
-	schemaStr := ""
+	schemaCol := "''"
+	schemaJoin := ""
 	if params.SchemaField != "" {
-		schemaStr = fmt.Sprintf(`JOIN pg_namespace n ON o.%s = n.oid
+		schemaCol = params.SchemaField
+		schemaJoin = fmt.Sprintf(`JOIN pg_namespace n ON o.%s = n.oid
 	WHERE %s`, params.SchemaField, SchemaFilterClause("n"))
 	}
-	descFunc := "pg_description"
-	subidStr := " AND d.objsubid = 0"
+	descTable := "pg_description"
+	subidWhere := " AND d.objsubid = 0"
 	if params.Shared {
-		descFunc = "pg_shdescription"
-		subidStr = ""
+		descTable = "pg_shdescription"
+		subidWhere = ""
 	}
-	ownerStr := "''"
+	ownerCol := "''"
 	if params.OwnerField != "" {
-		ownerStr = fmt.Sprintf("quote_ident(pg_get_userbyid(%s))", params.OwnerField)
+		ownerCol = fmt.Sprintf("quote_ident(pg_get_userbyid(%s))", params.OwnerField)
 	}
 	secCols := ""
-	secStr := ""
+	secJoin := ""
 	if connectionPool.Version.AtLeast("6") {
-		secCols = "coalesce(sec.label,'') AS securitylabel, coalesce(sec.provider, '') AS securitylabelprovider,"
+		secCols = `coalesce(sec.label,'') AS securitylabel,
+		coalesce(sec.provider, '') AS securitylabelprovider,`
 		secTable := "pg_seclabel"
-		secSubidStr := " AND sec.objsubid = 0"
+		secSubidWhere := " AND sec.objsubid = 0"
 		if params.Shared {
 			secTable = "pg_shseclabel"
-			secSubidStr = ""
+			secSubidWhere = ""
 		}
-		secStr = fmt.Sprintf("LEFT JOIN %s sec ON (sec.objoid = o.oid AND sec.classoid = '%s'::regclass%s)", secTable, params.CatalogTable, secSubidStr)
+		secJoin = fmt.Sprintf(`
+		LEFT JOIN %s sec ON (sec.objoid = o.oid AND sec.classoid = '%s'::regclass%s)`, secTable, params.CatalogTable, secSubidWhere)
 	}
 
 	query := fmt.Sprintf(`
 	SELECT
 		'%s'::regclass::oid AS classid,
 		o.oid,
-		%s AS privileges,
+		%s AS name,
 		%s AS kind,
+		%s AS schema,
 		%s AS owner,
+		%s AS privileges,
 		%s
 		coalesce(description,'') AS comment
 	FROM %s o LEFT JOIN %s d ON (d.objoid = o.oid AND d.classoid = '%s'::regclass%s)
-		%s
-		%s
-		AND o.oid NOT IN (SELECT objid FROM pg_depend WHERE deptype='e')
-	ORDER BY o.oid`, params.CatalogTable, aclStr, kindStr, ownerStr, secCols,
-	params.CatalogTable, descFunc, params.CatalogTable, subidStr, secStr, schemaStr)
+		%s%s
+	ORDER BY o.oid`,
+		params.CatalogTable, nameCol, kindCol, schemaCol, ownerCol, aclCols, secCols,
+		params.CatalogTable, descTable, params.CatalogTable, subidWhere, secJoin, schemaJoin)
 
 	results := make([]MetadataQueryStruct, 0)
 	err := connectionPool.Select(&results, query)
