@@ -22,12 +22,14 @@ import (
 type MetadataQueryParams struct {
 	NameField    string
 	SchemaField  string
+	ObjectType   string
 	OidField     string
 	ACLField     string
 	OwnerField   string
 	OidTable     string
 	CommentTable string
 	CatalogTable string
+	FilterClause string
 	Shared       bool
 }
 
@@ -65,41 +67,41 @@ var (
 )
 
 func InitializeMetadataParams(connectionPool *dbconn.DBConn) {
-	TYPE_AGGREGATE = MetadataQueryParams{NameField: "proname", SchemaField: "pronamespace", ACLField: "proacl", OwnerField: "proowner", CatalogTable: "pg_proc"}
-	TYPE_CAST = MetadataQueryParams{NameField: "typname", OidField: "oid", OidTable: "pg_type", CatalogTable: "pg_cast"}
-	TYPE_COLLATION = MetadataQueryParams{NameField: "collname", OidField: "oid", SchemaField: "collnamespace", OwnerField: "collowner", CatalogTable: "pg_collation"}
-	TYPE_CONSTRAINT = MetadataQueryParams{NameField: "conname", SchemaField: "connamespace", OidField: "oid", CatalogTable: "pg_constraint"}
-	TYPE_CONVERSION = MetadataQueryParams{NameField: "conname", OidField: "oid", SchemaField: "connamespace", OwnerField: "conowner", CatalogTable: "pg_conversion"}
-	TYPE_DATABASE = MetadataQueryParams{NameField: "datname", ACLField: "datacl", OwnerField: "datdba", CatalogTable: "pg_database", Shared: true}
-	TYPE_EVENTTRIGGER = MetadataQueryParams{NameField: "evtname", OidField: "oid", OwnerField: "evtowner", CatalogTable: "pg_event_trigger"}
-	TYPE_EXTENSION = MetadataQueryParams{NameField: "extname", OidField: "oid", CatalogTable: "pg_extension"}
-	TYPE_FOREIGNDATAWRAPPER = MetadataQueryParams{NameField: "fdwname", ACLField: "fdwacl", OwnerField: "fdwowner", CatalogTable: "pg_foreign_data_wrapper"}
-	TYPE_FOREIGNSERVER = MetadataQueryParams{NameField: "srvname", ACLField: "srvacl", OwnerField: "srvowner", CatalogTable: "pg_foreign_server"}
-	TYPE_FUNCTION = TYPE_AGGREGATE // Aggregates are functions. So the metadata call to get them are the same.
-	TYPE_INDEX = MetadataQueryParams{NameField: "relname", OidField: "indexrelid", OidTable: "pg_class", CommentTable: "pg_class", CatalogTable: "pg_index"}
-	TYPE_PROCLANGUAGE = MetadataQueryParams{NameField: "lanname", ACLField: "lanacl", CatalogTable: "pg_language"}
+	TYPE_AGGREGATE = MetadataQueryParams{ObjectType: "AGGREGATE", NameField: "proname", SchemaField: "pronamespace", ACLField: "proacl", OwnerField: "proowner", CatalogTable: "pg_proc", FilterClause: "proisagg = 't'"}
+	TYPE_CAST = MetadataQueryParams{ObjectType: "CAST", NameField: "typname", OidField: "oid", OidTable: "pg_type", CatalogTable: "pg_cast"}
+	TYPE_COLLATION = MetadataQueryParams{ObjectType: "COLLATION", NameField: "collname", OidField: "oid", SchemaField: "collnamespace", OwnerField: "collowner", CatalogTable: "pg_collation"}
+	TYPE_CONSTRAINT = MetadataQueryParams{ObjectType: "CONSTRAINT", NameField: "conname", SchemaField: "connamespace", OidField: "oid", CatalogTable: "pg_constraint"}
+	TYPE_CONVERSION = MetadataQueryParams{ObjectType: "CONVERSION", NameField: "conname", OidField: "oid", SchemaField: "connamespace", OwnerField: "conowner", CatalogTable: "pg_conversion"}
+	TYPE_DATABASE = MetadataQueryParams{ObjectType: "DATABASE", NameField: "datname", ACLField: "datacl", OwnerField: "datdba", CatalogTable: "pg_database", Shared: true}
+	TYPE_EVENTTRIGGER = MetadataQueryParams{ObjectType: "EVENT TRIGGER", NameField: "evtname", OidField: "oid", OwnerField: "evtowner", CatalogTable: "pg_event_trigger"}
+	TYPE_EXTENSION = MetadataQueryParams{ObjectType: "EXTENSION", NameField: "extname", OidField: "oid", CatalogTable: "pg_extension"}
+	TYPE_FOREIGNDATAWRAPPER = MetadataQueryParams{ObjectType: "FOREIGN DATA WRAPPER", NameField: "fdwname", ACLField: "fdwacl", OwnerField: "fdwowner", CatalogTable: "pg_foreign_data_wrapper"}
+	TYPE_FOREIGNSERVER = MetadataQueryParams{ObjectType: "SERVER", NameField: "srvname", ACLField: "srvacl", OwnerField: "srvowner", CatalogTable: "pg_foreign_server"}
+	TYPE_FUNCTION = MetadataQueryParams{ObjectType: "FUNCTION", NameField: "proname", SchemaField: "pronamespace", ACLField: "proacl", OwnerField: "proowner", CatalogTable: "pg_proc", FilterClause: "proisagg = 'f'"}
+	TYPE_INDEX = MetadataQueryParams{ObjectType: "INDEX", NameField: "relname", OidField: "indexrelid", OidTable: "pg_class", CommentTable: "pg_class", CatalogTable: "pg_index"}
+	TYPE_PROCLANGUAGE = MetadataQueryParams{ObjectType: "LANGUAGE", NameField: "lanname", ACLField: "lanacl", CatalogTable: "pg_language"}
 	if connectionPool.Version.Before("5") {
 		TYPE_PROCLANGUAGE.OwnerField = "10" // In GPDB 4.3, there is no lanowner field in pg_language, but languages have an implicit owner
 	} else {
 		TYPE_PROCLANGUAGE.OwnerField = "lanowner"
 	}
-	TYPE_OPERATOR = MetadataQueryParams{NameField: "oprname", SchemaField: "oprnamespace", OidField: "oid", OwnerField: "oprowner", CatalogTable: "pg_operator"}
-	TYPE_OPERATORCLASS = MetadataQueryParams{NameField: "opcname", SchemaField: "opcnamespace", OidField: "oid", OwnerField: "opcowner", CatalogTable: "pg_opclass"}
-	TYPE_OPERATORFAMILY = MetadataQueryParams{NameField: "opfname", SchemaField: "opfnamespace", OidField: "oid", OwnerField: "opfowner", CatalogTable: "pg_opfamily"}
-	TYPE_PROTOCOL = MetadataQueryParams{NameField: "ptcname", ACLField: "ptcacl", OwnerField: "ptcowner", CatalogTable: "pg_extprotocol"}
-	TYPE_RELATION = MetadataQueryParams{NameField: "relname", SchemaField: "relnamespace", ACLField: "relacl", OwnerField: "relowner", CatalogTable: "pg_class"}
-	TYPE_RESOURCEGROUP = MetadataQueryParams{NameField: "rsgname", OidField: "oid", CatalogTable: "pg_resgroup", Shared: true}
-	TYPE_RESOURCEQUEUE = MetadataQueryParams{NameField: "rsqname", OidField: "oid", CatalogTable: "pg_resqueue", Shared: true}
-	TYPE_ROLE = MetadataQueryParams{NameField: "rolname", OidField: "oid", CatalogTable: "pg_authid", Shared: true}
-	TYPE_RULE = MetadataQueryParams{NameField: "rulename", OidField: "oid", CatalogTable: "pg_rewrite"}
-	TYPE_SCHEMA = MetadataQueryParams{NameField: "nspname", ACLField: "nspacl", OwnerField: "nspowner", CatalogTable: "pg_namespace"}
-	TYPE_TABLESPACE = MetadataQueryParams{NameField: "spcname", ACLField: "spcacl", OwnerField: "spcowner", CatalogTable: "pg_tablespace", Shared: true}
-	TYPE_TSCONFIGURATION = MetadataQueryParams{NameField: "cfgname", OidField: "oid", SchemaField: "cfgnamespace", OwnerField: "cfgowner", CatalogTable: "pg_ts_config"}
-	TYPE_TSDICTIONARY = MetadataQueryParams{NameField: "dictname", OidField: "oid", SchemaField: "dictnamespace", OwnerField: "dictowner", CatalogTable: "pg_ts_dict"}
-	TYPE_TSPARSER = MetadataQueryParams{NameField: "prsname", OidField: "oid", SchemaField: "prsnamespace", CatalogTable: "pg_ts_parser"}
-	TYPE_TSTEMPLATE = MetadataQueryParams{NameField: "tmplname", OidField: "oid", SchemaField: "tmplnamespace", CatalogTable: "pg_ts_template"}
-	TYPE_TRIGGER = MetadataQueryParams{NameField: "tgname", OidField: "oid", CatalogTable: "pg_trigger"}
-	TYPE_TYPE = MetadataQueryParams{NameField: "typname", SchemaField: "typnamespace", OwnerField: "typowner", CatalogTable: "pg_type"}
+	TYPE_OPERATOR = MetadataQueryParams{ObjectType: "OPERATOR", NameField: "oprname", SchemaField: "oprnamespace", OidField: "oid", OwnerField: "oprowner", CatalogTable: "pg_operator"}
+	TYPE_OPERATORCLASS = MetadataQueryParams{ObjectType: "OPERATOR CLASS", NameField: "opcname", SchemaField: "opcnamespace", OidField: "oid", OwnerField: "opcowner", CatalogTable: "pg_opclass"}
+	TYPE_OPERATORFAMILY = MetadataQueryParams{ObjectType: "OPERATOR FAMILY", NameField: "opfname", SchemaField: "opfnamespace", OidField: "oid", OwnerField: "opfowner", CatalogTable: "pg_opfamily"}
+	TYPE_PROTOCOL = MetadataQueryParams{ObjectType: "PROTOCOL", NameField: "ptcname", ACLField: "ptcacl", OwnerField: "ptcowner", CatalogTable: "pg_extprotocol"}
+	TYPE_RELATION = MetadataQueryParams{ObjectType: "RELATION", NameField: "relname", SchemaField: "relnamespace", ACLField: "relacl", OwnerField: "relowner", CatalogTable: "pg_class"}
+	TYPE_RESOURCEGROUP = MetadataQueryParams{ObjectType: "RESOURCE GROUP", NameField: "rsgname", OidField: "oid", CatalogTable: "pg_resgroup", Shared: true}
+	TYPE_RESOURCEQUEUE = MetadataQueryParams{ObjectType: "RESOURCE QUEUE", NameField: "rsqname", OidField: "oid", CatalogTable: "pg_resqueue", Shared: true}
+	TYPE_ROLE = MetadataQueryParams{ObjectType: "ROLE", NameField: "rolname", OidField: "oid", CatalogTable: "pg_authid", Shared: true}
+	TYPE_RULE = MetadataQueryParams{ObjectType: "RULE", NameField: "rulename", OidField: "oid", CatalogTable: "pg_rewrite"}
+	TYPE_SCHEMA = MetadataQueryParams{ObjectType: "SCHEMA", NameField: "nspname", ACLField: "nspacl", OwnerField: "nspowner", CatalogTable: "pg_namespace"}
+	TYPE_TABLESPACE = MetadataQueryParams{ObjectType: "TABLESPACE", NameField: "spcname", ACLField: "spcacl", OwnerField: "spcowner", CatalogTable: "pg_tablespace", Shared: true}
+	TYPE_TSCONFIGURATION = MetadataQueryParams{ObjectType: "TEXT SEARCH CONFIGURATION", NameField: "cfgname", OidField: "oid", SchemaField: "cfgnamespace", OwnerField: "cfgowner", CatalogTable: "pg_ts_config"}
+	TYPE_TSDICTIONARY = MetadataQueryParams{ObjectType: "TEXT SEARCH DICTIONARY", NameField: "dictname", OidField: "oid", SchemaField: "dictnamespace", OwnerField: "dictowner", CatalogTable: "pg_ts_dict"}
+	TYPE_TSPARSER = MetadataQueryParams{ObjectType: "TEXT SEARCH PARSER", NameField: "prsname", OidField: "oid", SchemaField: "prsnamespace", CatalogTable: "pg_ts_parser"}
+	TYPE_TSTEMPLATE = MetadataQueryParams{ObjectType: "TEXT SEARCH TEMPLATE", NameField: "tmplname", OidField: "oid", SchemaField: "tmplnamespace", CatalogTable: "pg_ts_template"}
+	TYPE_TRIGGER = MetadataQueryParams{ObjectType: "TRIGGER", NameField: "tgname", OidField: "oid", CatalogTable: "pg_trigger"}
+	TYPE_TYPE = MetadataQueryParams{ObjectType: "TYPE", NameField: "typname", SchemaField: "typnamespace", OwnerField: "typowner", CatalogTable: "pg_type"}
 	if connectionPool.Version.AtLeast("6") {
 		TYPE_TYPE.ACLField = "typacl"
 	}
@@ -108,11 +110,12 @@ func InitializeMetadataParams(connectionPool *dbconn.DBConn) {
 type MetadataQueryStruct struct {
 	UniqueID
 	Name                  string
-	Kind                  string
+	ObjectType            string
 	Schema                string
 	Owner                 string
 	Comment               string
 	Privileges            sql.NullString
+	Kind                  string
 	SecurityLabel         string
 	SecurityLabelProvider string
 }
@@ -120,6 +123,7 @@ type MetadataQueryStruct struct {
 func GetMetadataForObjectType(connectionPool *dbconn.DBConn, params MetadataQueryParams) MetadataMap {
 	gplog.Verbose("Getting object type metadata from " + params.CatalogTable)
 
+	tableName := params.CatalogTable
 	nameCol := params.NameField
 	aclCols := "''"
 	kindCol := "''"
@@ -134,39 +138,42 @@ func GetMetadataForObjectType(connectionPool *dbconn.DBConn, params MetadataQuer
 		ELSE '' END`, params.ACLField)
 	}
 	schemaCol := "''"
-	schemaJoin := ""
+	joinClause := ""
+	filterClause := "1 = 1"
 	if params.SchemaField != "" {
-		schemaCol = params.SchemaField
-		schemaJoin = fmt.Sprintf(`JOIN pg_namespace n ON o.%s = n.oid
-	WHERE %s`, params.SchemaField, SchemaFilterClause("n"))
+		schemaCol = "n.nspname"
+		joinClause = fmt.Sprintf(`JOIN pg_namespace n ON o.%s = n.oid`, params.SchemaField)
+		filterClause = SchemaFilterClause("n")
 	}
 	descTable := "pg_description"
-	subidWhere := " AND d.objsubid = 0"
+	subidFilter := " AND d.objsubid = 0"
 	if params.Shared {
 		descTable = "pg_shdescription"
-		subidWhere = ""
+		subidFilter = ""
 	}
 	ownerCol := "''"
 	if params.OwnerField != "" {
 		ownerCol = fmt.Sprintf("quote_ident(pg_get_userbyid(%s))", params.OwnerField)
 	}
 	secCols := ""
-	secJoin := ""
 	if connectionPool.Version.AtLeast("6") {
 		secCols = `coalesce(sec.label,'') AS securitylabel,
 		coalesce(sec.provider, '') AS securitylabelprovider,`
 		secTable := "pg_seclabel"
-		secSubidWhere := " AND sec.objsubid = 0"
+		secSubidFilter := " AND sec.objsubid = 0"
 		if params.Shared {
 			secTable = "pg_shseclabel"
-			secSubidWhere = ""
+			secSubidFilter = ""
 		}
-		secJoin = fmt.Sprintf(`
-		LEFT JOIN %s sec ON (sec.objoid = o.oid AND sec.classoid = '%s'::regclass%s)`, secTable, params.CatalogTable, secSubidWhere)
+		joinClause += fmt.Sprintf(
+			` LEFT JOIN %s sec ON (sec.objoid = o.oid AND sec.classoid = '%s'::regclass%s)`,
+			secTable, tableName, secSubidFilter)
+	}
+	if params.FilterClause != "" {
+		filterClause += " AND " + params.FilterClause
 	}
 
-	query := fmt.Sprintf(`
-	SELECT
+	query := fmt.Sprintf(`SELECT
 		'%s'::regclass::oid AS classid,
 		o.oid,
 		%s AS name,
@@ -177,13 +184,17 @@ func GetMetadataForObjectType(connectionPool *dbconn.DBConn, params MetadataQuer
 		%s
 		coalesce(description,'') AS comment
 	FROM %s o LEFT JOIN %s d ON (d.objoid = o.oid AND d.classoid = '%s'::regclass%s)
-		%s%s
+		%s
+	WHERE %s
 	ORDER BY o.oid`,
-		params.CatalogTable, nameCol, kindCol, schemaCol, ownerCol, aclCols, secCols,
-		params.CatalogTable, descTable, params.CatalogTable, subidWhere, secJoin, schemaJoin)
+		tableName, nameCol, kindCol, schemaCol, ownerCol, aclCols, secCols,
+		tableName, descTable, tableName, subidFilter, joinClause, filterClause)
 
 	results := make([]MetadataQueryStruct, 0)
 	err := connectionPool.Select(&results, query)
+	for i := range results {
+		results[i].ObjectType = params.ObjectType
+	}
 	gplog.FatalOnError(err)
 
 	return ConstructMetadataMap(results)
@@ -231,7 +242,15 @@ func GetCommentsForObjectType(connectionPool *dbconn.DBConn, params MetadataQuer
 	metadataMap := make(MetadataMap)
 	if len(results) > 0 {
 		for _, result := range results {
-			metadataMap[result.UniqueID] = ObjectMetadata{[]ACL{}, "", result.Comment, "", ""}
+			metadataMap[result.UniqueID] = ObjectMetadata{
+				[]ACL{},
+				"",
+				"",
+				"",
+				"",
+				result.Comment,
+				"",
+				""}
 		}
 	}
 	return metadataMap

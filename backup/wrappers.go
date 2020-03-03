@@ -310,11 +310,6 @@ func RetrieveAggregates(sortables *[]Sortable, metadataMap MetadataMap) {
 	gplog.Verbose("Retrieving AGGREGATE information")
 	aggregates := GetAggregates(connectionPool)
 	objectCounts["Aggregates"] = len(aggregates)
-	/* This call to get Metadata for Aggregates, although redundant, is preserved for
-	 * consistency with other, similar methods.  The metadata for aggregate
-	 * are located on the same catalog table as functions (pg_proc). This means that when we
-	 * get function metadata we also get aggregate metadata at the same time.
-	 */
 	aggMetadata := GetMetadataForObjectType(connectionPool, TYPE_AGGREGATE)
 
 	*sortables = append(*sortables, convertToSortableSlice(aggregates)...)
@@ -470,10 +465,10 @@ func BackupCreateSequences(metadataFile *utils.FileWithByteCount, sequences []Se
 	PrintCreateSequenceStatements(metadataFile, globalTOC, sequences, relationMetadata)
 }
 
-func createBackupSet(objSlice []Sortable) (backupSet map[UniqueID]bool) {
-	backupSet = make(map[UniqueID]bool)
+func createBackupSet(objSlice []Sortable) (backupSet map[UniqueID]Sortable) {
+	backupSet = make(map[UniqueID]Sortable)
 	for _, obj := range objSlice {
-		backupSet[obj.GetUniqueID()] = true
+		backupSet[obj.GetUniqueID()] = obj
 	}
 
 	return backupSet

@@ -173,7 +173,7 @@ type UniqueID struct {
 }
 
 // This function only returns dependencies that are referenced in the backup set
-func GetDependencies(connectionPool *dbconn.DBConn, backupSet map[UniqueID]bool) DependencyMap {
+func GetDependencies(connectionPool *dbconn.DBConn, backupSet map[UniqueID]Sortable) DependencyMap {
 	query := fmt.Sprintf(`SELECT
 	coalesce(id1.refclassid, d.classid) AS classid,
 	coalesce(id1.refobjid, d.objid) AS objid,
@@ -222,7 +222,7 @@ AND typelem != 0`)
 		_, objInBackup := backupSet[object]
 		_, referenceInBackup := backupSet[referenceObject]
 
-		if (object == referenceObject) || (!objInBackup || !referenceInBackup) {
+		if object == referenceObject || !objInBackup || !referenceInBackup {
 			continue
 		}
 
@@ -261,6 +261,8 @@ func PrintDependentObjectStatements(metadataFile *utils.FileWithByteCount, toc *
 	}
 	for _, object := range objects {
 		objMetadata := metadataMap[object.GetUniqueID()]
+		// Remove ACLs from metadataMap for the current object
+		delete(metadataMap, object.GetUniqueID())
 		switch obj := object.(type) {
 		case BaseType:
 			PrintCreateBaseTypeStatement(metadataFile, toc, obj, objMetadata)
@@ -303,5 +305,10 @@ func PrintDependentObjectStatements(metadataFile *utils.FileWithByteCount, toc *
 		case MaterializedView:
 			PrintCreateMaterializedViewStatement(metadataFile, toc, obj, objMetadata)
 		}
+	}
+	//  Process ACLs for left over functions
+	for uniqueId, objectMeta := range metadataMap {
+		// e.g. Grants for any functions that belong to extensions
+		PrintExternalGrants(metadataFile, toc, objectMeta, funcInfoMap[uniqueId.Oid])
 	}
 }
